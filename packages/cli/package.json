@@ -1,0 +1,16 @@
+{
+  "name": "@distil/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Distil CLI: syncs TrueForge session events into PROJECT.ctx and answers grounded questions",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "distil": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
