@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+
+allowBuilds:
+  esbuild: set this to true or false
+
+# The E: drive is exFAT (no symlinks); hoisting avoids the symlinked store.
+nodeLinker: hoisted
+# Don't re-resolve on every script run; the environment's network is flaky.
+verifyDepsBeforeRun: false

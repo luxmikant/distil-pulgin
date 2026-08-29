@@ -1,0 +1,12 @@
+node_modules/
+dist/
+lib/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Generated per-machine context files (absolute paths + session ids); recreated by `distil init`/`sync`.
+PROJECT.ctx

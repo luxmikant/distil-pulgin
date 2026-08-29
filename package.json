@@ -1,0 +1,24 @@
+{
+  "name": "trueforge-distil",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Distil — an intelligent project-context engine plugin for the TrueForge agent harness",
+  "type": "module",
+  "engines": {
+    "node": ">=22.14"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "pnpm --filter @distil/engine build",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "tsc -p tsconfig.base.json --noEmit",
+    "distil": "node --import tsx packages/cli/src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
