@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a bug in Distil.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear, concise description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands and inputs that trigger the bug.
+      placeholder: |
+        1. `npx @truefoundry/trueforge`
+        2. `pnpm distil sync --root ...`
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: Node version, pnpm version, and commit hash if available.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Any relevant output, `PROJECT.ctx` excerpts (redact anything sensitive), or session evidence.
