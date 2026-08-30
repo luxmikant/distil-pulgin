@@ -17,6 +17,8 @@ import { CTX_FILE_NAME, renderMarkdown, writeContext } from '../../engine/src/in
 import { askLocal, askWithAgent, sessionLine } from './ask.ts'
 import { TfClient } from './client.ts'
 import { loadOrInit, sync, watch } from './daemon.ts'
+import { digestLlmFromEnv, runDigest } from './digest.ts'
+import { serve } from './serve.ts'
 
 interface CliOptions {
   baseUrl: string
@@ -125,6 +127,23 @@ async function main(): Promise<void> {
       console.log(renderMarkdown(state))
       return
     }
+    case 'digest': {
+      const state = await loadOrInit(opts)
+      const llm = digestLlmFromEnv(process.env)
+      const result = await runDigest(state, llm)
+      await writeContext(opts.ctxPath, result.state)
+      console.log(`digest generated with ${result.model} from ${result.digest.fromSessions.length} session(s) → ${opts.ctxPath}`)
+      return
+    }
+    case 'serve': {
+      await serve({
+        ctxPath: opts.ctxPath,
+        port: Number(options.port?.[0] ?? 4173),
+        host: options.host?.[0] ?? '127.0.0.1',
+        log,
+      })
+      return
+    }
     default:
       console.log(`unknown command "${command}"\n\n${USAGE}`)
       return
@@ -137,10 +156,13 @@ const USAGE = [
   '  distil init [--base-url <url>] [--name <project>] [--root <dir>]',
   '  distil sync [--watch] [--interval <ms>] [--session <id>...]',
   '  distil ask <question> [--llm --agent <name>]',
+  '  distil digest [--root <dir>]',
+  '  distil serve [--port <n>] [--host <h>]',
   '  distil budget',
   '  distil render',
   '',
   'Environment: TRUEFORGE_BASE_URL (default http://localhost:8790), DISTIL_PROJECT_NAME.',
+  'Digest environment: DISTIL_LLM_BASE_URL, DISTIL_LLM_API_KEY, DISTIL_LLM_MODEL (OpenAI-compatible).',
 ].join('\n')
 
 void main().catch(error => {
