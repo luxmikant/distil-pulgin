@@ -69,6 +69,7 @@ interface OpenSession {
   approvals: ApprovalRecord[]
   threads: ThreadRecordLike[]
   sandboxes: number
+  errors: string[]
   toolUsage: Record<string, ToolUsageRecord>
   fileMentions: Record<string, FileMention>
   usageEstimated: boolean
@@ -132,6 +133,7 @@ function rebuildSession(sessionId: string, items: readonly SessionEventItem[]): 
     approvals: [],
     threads: [],
     sandboxes: 0,
+    errors: [],
     toolUsage: {},
     fileMentions: {},
     usageEstimated: false,
@@ -152,6 +154,7 @@ function rebuildSession(sessionId: string, items: readonly SessionEventItem[]): 
   summary.approvals = open.approvals
   summary.threads = open.threads
   summary.sandboxes = open.sandboxes
+  summary.errors = open.errors
   summary.toolUsage = open.toolUsage
   summary.fileMentions = open.fileMentions
   return summary
@@ -191,6 +194,9 @@ function applyEvent(open: OpenSession, event: SessionEventItem['event']): void {
           }
         }
         closeTurn(open, turn)
+      }
+      if (done.state.status === 'error' && typeof done.state.message === 'string' && done.state.message.length > 0) {
+        open.errors.push(done.state.message)
       }
       if (at !== undefined) open.endedAt = open.endedAt === undefined ? at : Math.max(open.endedAt, at)
       return
