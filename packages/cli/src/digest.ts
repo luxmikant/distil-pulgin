@@ -12,7 +12,7 @@
  * @module @distil/cli/digest
  */
 
-import type { Digest, DistilContextV1, SessionEventItem } from '../../engine/src/index.ts'
+import type { Digest, DistilContextV1, SessionEventItem, SessionSummary } from '../../engine/src/index.ts'
 import { buildDigestRequest, digestFrom, parseDigestSections, withDigest } from '../../engine/src/index.ts'
 
 /** An OpenAI-compatible endpoint Distil can call to generate the digest. */
@@ -20,6 +20,11 @@ export interface DigestLlmOptions {
   baseUrl: string
   apiKey: string
   model: string
+}
+
+/** The minimum a harness client must expose to enrich digest evidence with raw events. */
+export interface EvidenceClient {
+  listSessionEvents(sessionId: string): Promise<SessionEventItem[]>
 }
 
 /** A composed answer, injectable for tests. */
@@ -48,27 +53,52 @@ export function digestLlmFromEnv(env: NodeJS.ProcessEnv): DigestLlmOptions {
 /**
  * Generate the digest from the folded context and merge it into the document.
  * The default composer posts to an OpenAI-compatible endpoint; tests inject a
- * composer to exercise the parse/merge path without a network call.
+ * composer to exercise the parse/merge path without a network call. When a
+ * harness client is provided, raw session events enrich the evidence sent to
+ * the model; otherwise the digest is built from the folded summaries alone.
  *
  * @param state - the current context document (provides folded evidence and the prior digest).
  * @param llm - the endpoint to generate the digest with.
  * @param options.now - timestamp for the digest; defaults to the current time.
  * @param options.compose - the composition function; defaults to a chat-completions call.
+ * @param options.client - optional harness client used to fetch raw-event evidence.
  * @returns the updated document and the digest written.
  */
+export interface DigestOptions {
+  now?: Date
+  compose?: Compose
+  client?: EvidenceClient
+}
+
 export async function runDigest(
   state: DistilContextV1,
   llm: DigestLlmOptions,
-  options: { now?: Date; compose?: Compose } = {},
+  options: DigestOptions = {},
 ): Promise<DigestResult> {
   const now = options.now ?? new Date()
   const compose = options.compose ?? chatCompletion
   const sessions = Object.values(state.sessions)
-  const { system, user } = buildDigestRequest(state, sessions, new Map<string, readonly SessionEventItem[]>())
+  let itemsBySession: Map<string, readonly SessionEventItem[]> = new Map()
+  if (options.client !== undefined) itemsBySession = await collectEvidence(options.client, sessions)
+  const { system, user } = buildDigestRequest(state, sessions, itemsBySession)
   const content = await compose(llm, system, user)
   const sections = parseDigestSections(content)
   const digest = digestFrom(sections, sessions.map(session => session.sessionId), now)
   return { state: withDigest(state, digest, now), digest, model: llm.model }
+}
+
+/** Fetch raw events per session; a session that cannot be fetched is skipped silently. */
+async function collectEvidence(client: EvidenceClient, sessions: readonly SessionSummary[]): Promise<Map<string, readonly SessionEventItem[]>> {
+  const map = new Map<string, readonly SessionEventItem[]>()
+  for (const session of sessions) {
+    try {
+      const items = await client.listSessionEvents(session.sessionId)
+      if (items.length > 0) map.set(session.sessionId, items)
+    } catch {
+      // Harness unavailable for this session — the digest falls back to folded summaries.
+    }
+  }
+  return map
 }
 
 /** Minimal OpenAI-compatible chat-completions call; no SDK dependency. */
