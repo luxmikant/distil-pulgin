@@ -113,6 +113,16 @@ describe('fold', () => {
     expect(folded.sessions['sess-1']!.usage.outputTokens).toBe(3)
   })
 
+  it('folds error-turn messages into the session summary', () => {
+    const state = initContext({ name: 'demo', root: '/demo' })
+    const items = [
+      item('t1', ev({ type: 'turn.created', id: 'e1', turnId: 't1' })),
+      item('t1', ev({ type: 'turn.done', id: 'e2', state: { status: 'error', message: 'Request failed (402): Insufficient Balance' } })),
+    ]
+    const folded = foldSessionItems(state, 'sess-1', items)
+    expect(folded.sessions['sess-1']!.errors).toEqual(['Request failed (402): Insufficient Balance'])
+  })
+
   it('withDigest keeps the same reference when the digest is unchanged', () => {
     const state = initContext({ name: 'demo', root: '/demo' })
     const digest = digestFrom(parseDigestSections('## Files and Code\n- src/a.ts: entry\n'), ['sess-1'])
@@ -149,5 +159,18 @@ describe('summarizer', () => {
     expect(request.user).toContain('PRIOR DIGEST')
     expect(request.user).toContain('old.ts: stale')
     expect(request.user).toContain('writing the cli')
+  })
+
+  it('includes errors and files from the folded summary in the evidence', () => {
+    const state = initContext({ name: 'demo', root: '/demo' })
+    const folded = foldSessionItems(state, 'sess-1', [
+      item('t1', ev({ type: 'turn.created', id: 'e1', turnId: 't1' })),
+      item('t1', ev({ type: 'model.message', id: 'm1', toolCalls: [{ id: 'c1', type: 'function', function: { name: 'write_file', arguments: '{"path":"src/a.ts"}' } }] })),
+      item('t1', ev({ type: 'turn.done', id: 'e2', state: { status: 'error', message: 'boom' } })),
+    ])
+    const request = buildDigestRequest(folded, [folded.sessions['sess-1']!], new Map())
+    expect(request.user).toContain('- error: boom')
+    expect(request.user).toContain('- files:')
+    expect(request.user).toContain('src/a.ts')
   })
 })

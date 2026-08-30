@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { foldSessionItems, initContext } from '../../engine/src/index.ts'
 import { digestLlmFromEnv, runDigest } from '../src/digest.ts'
+import type { EvidenceClient } from '../src/digest.ts'
 
 const SECTIONS = `## Primary Request and Intent
 - build a counter service
@@ -61,6 +62,22 @@ describe('runDigest', () => {
     const result = await runDigest(state, { baseUrl: 'http://x', apiKey: 'k', model: 'm' }, { compose: async () => SECTIONS })
     expect(result.state.sessions['sess-1']!.usage.inputTokens).toBe(10)
     expect(result.state.budget.usage.inputTokens).toBe(10)
+  })
+
+  it('enriches the evidence with raw events when a client is provided', async () => {
+    const state = foldSessionItems(initContext({ name: 'demo', root: '/demo' }), 'sess-1', [
+      { turnId: 't1', event: { type: 'turn.created', id: 'e1', turnId: 't1' } },
+      { turnId: 't1', event: { type: 'turn.done', id: 'e2', state: { status: 'done' } } },
+    ])
+    const client: EvidenceClient = {
+      listSessionEvents: async () => [{ turnId: 't1', event: { type: 'model.message', id: 'm1', content: 'raw evidence line' } }],
+    }
+    let seenUser = ''
+    await runDigest(state, { baseUrl: 'http://x', apiKey: 'k', model: 'm' }, {
+      compose: async (_llm, _system, user) => { seenUser = user; return SECTIONS },
+      client,
+    })
+    expect(seenUser).toContain('raw evidence line')
   })
 })
 

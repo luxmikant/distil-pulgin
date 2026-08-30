@@ -154,9 +154,10 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
     }).join('');
     var sessions = Object.values(ctx.sessions || {});
     document.getElementById('sessions').innerHTML = sessions.map(function (s) {
+      var errs = (s.errors || []).map(function (e) { return '<div class="muted" style="color:#f85149">error: ' + esc(e) + '</div>'; }).join('');
       return '<div class="section"><h3>' + esc(s.sessionId) + '<span class="pill">' + s.turns + ' turn(s)</span></h3>' +
         '<div class="muted">' + esc(s.startedAt || '') + ' → ' + esc(s.endedAt || '') + '</div>' +
-        '<div class="muted">in ' + Number(s.usage.inputTokens).toLocaleString() + ' · out ' + Number(s.usage.outputTokens).toLocaleString() + ' tokens' + (s.usageEstimated ? ' (partial)' : '') + '</div></div>';
+        '<div class="muted">in ' + Number(s.usage.inputTokens).toLocaleString() + ' · out ' + Number(s.usage.outputTokens).toLocaleString() + ' tokens' + (s.usageEstimated ? ' (partial)' : '') + '</div>' + errs + '</div>';
     }).join('') || '<p class="muted">No sessions folded yet — run distil sync.</p>';
     var tools = Object.entries(ctx.tools || {});
     document.getElementById('tools').innerHTML = tools.length

@@ -101,6 +101,9 @@ export function renderMarkdown(context: DistilContextV1): string {
     if (session.approvals.length > 0) {
       for (const approval of session.approvals) lines.push(`  - human checkpoint: ${approval.kind} at ${approval.at}`)
     }
+    if (session.errors.length > 0) {
+      for (const error of session.errors) lines.push(`  - error: ${error}`)
+    }
   }
   lines.push('')
 
