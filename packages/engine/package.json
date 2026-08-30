@@ -1,0 +1,15 @@
+{
+  "name": "@distil/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Distil engine: pure folds that distill TrueForge session events into a versioned project context file",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}
