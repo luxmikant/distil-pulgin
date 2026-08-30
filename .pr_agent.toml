@@ -1,0 +1,10 @@
+[github_app]
+pr_commands = ["/agentic_describe", "/agentic_review"]
+handle_push_trigger = true
+push_commands = ["/agentic_review"]
+
+[pr_reviewer]
+require_security_review = true
+require_tests_review = true
+persistent_comment = true
+final_update_message = false

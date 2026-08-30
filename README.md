@@ -1,107 +1,70 @@
 # Distil
 
-**An intelligent project-context engine for the [TrueForge](https://github.com/truefoundry/trueforge) agent harness.**
+Capture the project knowledge your coding agents create — and reuse it for a few tokens, not a fortune.
 
-When a coding agent builds your project, two token bills exist: the tokens spent *generating* code, and the tokens spent *understanding* the project later. Distil removes the second bill: it watches every event the TrueForge harness emits while agents work on your project, distills the raw trajectory into a local, versioned context file — **`PROJECT.ctx`** — and gives you a bird's-eye view of your own project for **X tokens instead of a fortune**.
-
-Built for the [Agent Harness Hackathon](https://www.wemakedevs.org/hackathons/trueforge) (Aug 24–30, 2026). Architectural inspiration: the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (see [docs/architecture.md](docs/architecture.md)).
-
----
+Distil is a project-context engine for agent coding harnesses. It watches the event stream a coding agent produces, distills it into a versioned `PROJECT.ctx` file, and answers questions about your project from that file — grounded in what actually happened, not in a re-generation.
 
 ## The problem
 
-A chatbot answers questions. An agent acts on them — and while it acts, it *decides*: how the system is organized, which trade-offs were made, why each choice exists. That knowledge accumulates invisibly inside session transcripts. When you (the developer) come back a week later, the only way to recover it is to spend a huge number of tokens re-reading code, commits, and conversation logs.
+When a coding agent builds your project, you pay two token bills: the tokens spent *generating* code, and the tokens spent *understanding* the project later. The second bill is hidden inside session transcripts. Every architectural decision, trade-off, and fix lives only in conversation logs — come back in a week and recovering that context means re-reading code, commits, and logs, thousands of tokens at a time.
 
-**Distil's answer:** spend a fixed, small budget *while the agent builds*, and get an engine that maintains your understanding as a first-class artifact — the `.ctx` file.
-
-## What Distil gives you
-
-- **What does our project do?** A structured digest, maintained continuously.
-- **What are the feature requirements?** The agent's original goals and how they evolved.
-- **How did the agent actually code it?** Files, decisions, errors, fixes — traced to real session events.
-- **What did it cost?** A token + time wallet across every session (input/output tokens, time-to-first-token, tool time).
-- **Grounded answers.** `distil ask "why does checkout retry 4 times?"` answers from the stored `.ctx` + recorded session evidence, never from a hallucination.
+Distil removes the second bill. It folds the harness's event stream into a durable, evidence-traced context file *while the agent works*, and answers grounded questions from it afterwards.
 
 ## Quickstart
 
+Requirements: Node.js >= 22.14 and pnpm.
+
 ```bash
-# 1. Run TrueForge locally (one command, no clone)
-npx @truefoundry/trueforge@latest
-# -> http://localhost:8790 (configure a model provider in Settings, e.g. DeepSeek)
+# 1. Start an agent harness (TrueForge — one command, no clone)
+npx @truefoundry/trueforge            # -> http://localhost:8790
 
-# 2. Install Distil
-git clone <this-repo> && cd trueforge-distil
-pnpm install && pnpm build
+# 2. Clone and install Distil
+git clone https://github.com/luxmikant/distil-plugin && cd distil-plugin
+pnpm install
 
-# 3. Point Distil at the harness, initialize the project context
-pnpm distil init --base-url http://localhost:8790
+# 3. Point Distil at your project and start watching the harness
+pnpm distil init --root /path/to/your/project
+pnpm distil sync --watch --root /path/to/your/project
 
-# 4. Do work with any TrueForge agent on this project (chat UI, SDK, whatever).
-#    Then fold the harness's event stream into the context file:
-pnpm distil sync
+# 4. Do work with any agent on that project, then generate the digest
+DISTIL_LLM_BASE_URL=... DISTIL_LLM_API_KEY=... DISTIL_LLM_MODEL=... \
+  pnpm distil digest --root /path/to/your/project
 
-# 5. Ask grounded questions
-pnpm distil ask "what does this project do and how was it built?"
-
-# 6. Inspect the budget
-pnpm distil budget
+# 5. Ask grounded questions, inspect the budget, open the dashboard
+pnpm distil ask "what does this project do and how was it built?" --root /path/to/your/project
+pnpm distil budget --root /path/to/your/project
+pnpm distil serve --root /path/to/your/project   # -> http://127.0.0.1:4173
 ```
 
-The `.ctx` file is plain versioned JSON (see [docs/context-file-format.md](docs/context-file-format.md)) with a Markdown projection. Commit it like any other artifact.
+## Commands
 
-## The 3-minute demo
+| Command | What it does |
+| --- | --- |
+| `distil init` | Create a `PROJECT.ctx` for a project. |
+| `distil sync [--watch]` | Fold harness session events into `PROJECT.ctx`. |
+| `distil digest` | Generate the LLM digest from folded evidence. |
+| `distil ask <q> [--llm]` | Answer a question from stored context. |
+| `distil budget` | Print the token + time wallet across sessions. |
+| `distil render` | Project `PROJECT.ctx` to Markdown. |
+| `distil serve` | Open the web dashboard. |
 
-1. Start TrueForge + Distil (`distil sync --watch`).
-2. Ask a TrueForge coding agent to build `examples/demo-project` (a small feature).
-3. Show the chat UI: tool calls, **sandbox** execution, and the **approval pause** before the agent overwrites `PROJECT.ctx`.
-4. Approve. `distil ask` the questions above — answers are grounded in recorded session events.
-5. Show `distil budget` — the token/time wallet across all sessions.
+## How it works
 
-## How TrueForge does the real work
+The harness emits a stream of session events (`turn.created`, `model.message`, `tool.response`, …). Distil's engine reduces that stream with pure, synchronous *folds* into typed facts — token usage, wall-clock time, tool calls, file mentions, approvals, subagent threads, and error messages — and writes them to `PROJECT.ctx`. A second, LLM-generated *digest* summarizes the project in eight fixed sections.
 
-| Harness capability | Where Distil uses it |
-|---|---|
-| **Session events API** (`GET /sessions/{id}/events`, SSE turn streams) | The raw trajectory Distil folds — `turn.created`, `model.message` (+ `usage`), `tool.response`, `thread.created`/`thread.done` for subagents |
-| **Skills** (git-backed `SKILL.md`, progressive disclosure) | `packages/skill` — teaches the agent to maintain `PROJECT.ctx` |
-| **Sandbox-as-tool** | The agent reads repo files and runs Distil's scripts inside the sandbox |
-| **Human checkpoints** (`tool.approval_required`) | Rewriting `PROJECT.ctx` is approval-gated — the control-and-safety moment in the demo |
-| **Compaction** | Harness-side context management; Distil's digest survives compaction because it lives *outside* the agent's working context |
-| **Subagents** | Parallel per-file analysis threads, merged into the digest |
+Two writers update the file, and they never collide: folded facts are mechanical and rebuilt deterministically from events; the digest is an interpretation. **The fold wins** — a disagreement is a bug in the digest, never a reason to edit a folded fact.
 
-## Architecture
+## Documentation
 
-```
-TrueForge harness ──events──▶ distil-cli ──fold──▶ distil-engine ──▶ PROJECT.ctx
-   (agent loop)      (SDK/SSE)   (watch/sync)      (pure folds)      (versioned JSON)
-                                                                         │
-   ┌─────────────────────────────────────────────────────────────────────┤
-   ▼                                                                     ▼
-distil ask / budget ──────────────▶ grounded answers              distil-maintainer agent
-                                                                   (TrueForge skill, sandbox)
-```
+- [Architecture](docs/architecture.md) — design and component map
+- [Context file format](docs/context-file-format.md) — the `PROJECT.ctx` schema
+- [Reproduction guide](docs/reproduction.md) — run it from a clean environment
+- [Evaluation](docs/evaluation.md) — baseline vs Distil
 
-See [docs/architecture.md](docs/architecture.md) for the full design and the DeepSeek Harness inspiration catalog.
+## Contributing
 
-## Repo layout
-
-```
-packages/engine/   Pure folds: trajectory, digest sections, token/time wallet, .ctx format
-packages/cli/      TrueForge SDK client, sync/watch daemon, ask/budget commands
-packages/skill/    SKILL.md pack for the distil-maintainer agent
-agents/            TrueForge AgentSpec for the distil-maintainer agent
-docs/              architecture, context-file format
-examples/          demo project the demo agent builds
-tests/             unit tests for the folds
-```
-
-## Qodo Code Review Evidence
-
-> Required by the hackathon. Every substantive change in this repo merges through a pull request reviewed by Qodo.
-
-- Representative PR: **\<link to a merged PR containing meaningful hackathon code\>**
-- What Qodo surfaced and what we did: **\<1–2 sentences: the material findings, which were fixed, which were intentionally dismissed and why\>**
-- Review history: **\<link showing the completed review, our replies/dismissals, and a follow-up review against final code\>**
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT. This project is not affiliated with TrueFoundry or DeepSeek.
+[MIT](LICENSE)
