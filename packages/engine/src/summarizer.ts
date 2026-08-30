@@ -80,6 +80,12 @@ export function buildDigestRequest(
   const evidence = sessions.map(session => {
     const lines: string[] = [`## Session ${session.sessionId}`, `- turns: ${session.turns}`, `- started: ${session.startedAt}`, `- ended: ${session.endedAt}`]
     for (const approval of session.approvals) lines.push(`- human checkpoint: ${approval.kind} at ${approval.at} (tool calls: ${approval.toolCallIds.join(', ')})`)
+    for (const error of session.errors.slice(0, EVIDENCE_LIMITS.turns)) lines.push(`- error: ${error}`)
+    const filePaths = Object.keys(session.fileMentions).slice(0, EVIDENCE_LIMITS.files)
+    if (filePaths.length > 0) {
+      lines.push('- files:')
+      for (const path of filePaths) lines.push(`  - ${path}`)
+    }
     const toolLines = Object.entries(session.toolUsage).map(([name, record]) => `  - ${name}: ${record.calls} calls${record.approvals > 0 ? `, ${record.approvals} approval-gated` : ''}`)
     if (toolLines.length > 0) {
       lines.push('- tools:')

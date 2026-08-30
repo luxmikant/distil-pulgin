@@ -184,6 +184,8 @@ export interface SessionSummary {
   approvals: ApprovalRecord[]
   threads: ThreadRecord[]
   sandboxes: number
+  /** Error messages folded from `turn.done` events whose state is "error". */
+  errors: string[]
   toolUsage: Record<string, ToolUsageRecord>
   fileMentions: Record<string, FileMention>
 }
@@ -271,6 +273,7 @@ export function emptySession(sessionId: string): SessionSummary {
     approvals: [],
     threads: [],
     sandboxes: 0,
+    errors: [],
     toolUsage: {},
     fileMentions: {},
   }
