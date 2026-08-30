@@ -130,7 +130,8 @@ async function main(): Promise<void> {
     case 'digest': {
       const state = await loadOrInit(opts)
       const llm = digestLlmFromEnv(process.env)
-      const result = await runDigest(state, llm)
+      const client = new TfClient({ baseUrl: opts.baseUrl })
+      const result = await runDigest(state, llm, { client })
       await writeContext(opts.ctxPath, result.state)
       console.log(`digest generated with ${result.model} from ${result.digest.fromSessions.length} session(s) → ${opts.ctxPath}`)
       return
